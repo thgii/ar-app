@@ -64,7 +64,7 @@
     }
     #hint-banner.visible { opacity: 1; }
 
-    /* EXPLICIT HARDWARE LAYER LAYOUTS */
+    /* HARDWARE POSITIONING ARRAYS */
     body > video {
       position: fixed !important;
       top: 0 !important;
@@ -103,9 +103,9 @@
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
-    <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false" camera="near: 0.01; far: 100"></a-camera>
 
-    <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
+    <a-entity id="ar-target" mindar-image-target="targetIndex: 0" scale="2 2 2">
       
       <a-plane position="0 0 0" rotation="0 0 0" width="1" height="1" color="#FF00FF" opacity="0.8"></a-plane>
 
@@ -124,14 +124,21 @@
 
     let arSystem = null;
 
-    scene.addEventListener('loaded', () => {
+    // Helper checking to secure system loop bindings
+    const initAR = () => {
       arSystem = scene.systems['mindar-image-system'];
       if (arSystem) {
         startBtn.disabled = false;
         startBtn.textContent = 'Start AR';
         readyMsg.textContent = 'Hardware connection secure. Tap below to launch.';
       }
-    });
+    };
+
+    if (scene.hasLoaded) {
+      initAR();
+    } else {
+      scene.addEventListener('loaded', initAR);
+    }
 
     startBtn.addEventListener('click', async () => {
       if (!arSystem) return;
@@ -145,7 +152,7 @@
       }
     });
 
-    // Handle universal matching across all compilation indices
+    // Global pipeline capture monitoring all compiled target index channels
     scene.addEventListener('targetFound', (event) => {
       const foundIndex = event.detail.targetIndex;
       hintBanner.textContent = `🎯 MATCH FOUND (INDEX: ${foundIndex})`;
