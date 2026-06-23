@@ -3,16 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Web AR — Direct WebGL Pipeline</title>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+  <title>Web AR — Hardware Debugger</title>
 
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; }
-    #container { width: 100vw; height: 100vh; position: relative; }
+    #container { width: 100vw; height: 100vh; position: relative; background: #111; }
     
-    /* System layers managed explicitly via absolute viewports */
     #container video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
     #container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 
@@ -44,10 +40,10 @@
 
     #hint-banner {
       position: fixed;
-      bottom: 32px;
+      top: 16px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(10,10,20,0.85);
+      background: rgba(10,10,20,0.9);
       color: #e0e0f0;
       padding: 12px 24px;
       border-radius: 24px;
@@ -55,22 +51,68 @@
       font-size: 14px;
       z-index: 1000;
       border: 1px solid rgba(124,106,247,0.3);
-      display: none;
     }
+
+    /* HARDWARE DEBUG CONSOLE BOX */
+    #debug-log {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 40vh;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      color: #00ff00;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 12px;
+      overflow-y: auto;
+      z-index: 10000;
+      border-top: 2px solid #7c6af7;
+      pointer-events: auto;
+    }
+    .log-err { color: #ff3333; font-weight: bold; }
+    .log-warn { color: #ffcc00; }
+    .log-success { color: #00ffff; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <div id="start-screen" class="overlay">
-    <div style="font-size: 56px;">📷</div>
-    <strong>Direct WebGL AR Pipeline</strong>
-    <p>Using raw rendering to guarantee compatibility.</p>
-    <button id="start-btn">Start AR</button>
+    <div style="font-size: 56px;">🛠️</div>
+    <strong>AR Debug Pipeline</strong>
+    <p>This build prints runtime errors directly onto the screen.</p>
+    <button id="start-btn">Launch Diagnostics</button>
   </div>
 
-  <div id="hint-banner">Scanning for target image...</div>
+  <div id="hint-banner" class="hidden">Engine Status: Idle</div>
   
   <div id="container"></div>
+
+  <div id="debug-log">=== DIAGNOSTIC CONSOLE INITIALIZED ===<br></div>
+
+  <script>
+    const debugBox = document.getElementById('debug-log');
+    
+    function log(msg, type = '') {
+      const span = document.createElement('span');
+      if(type) span.className = `log-${type}`;
+      span.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+      debugBox.appendChild(span);
+      debugBox.scrollTop = debugBox.scrollHeight;
+    }
+
+    // Capture unhandled global runtime page scripts crashes
+    window.onerror = function(message, source, lineno, colno, error) {
+      log(`CRASH: ${message} at line ${lineno}`, 'err');
+      return false;
+    };
+
+    log("Loading WebGL Dependencies...");
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js" onload="log('Three.js Core Engine Loaded successfully.', 'success')" onerror="log('FAILED to fetch Three.js CDNs', 'err')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js" onload="log('MindAR Tracking Engine Loaded successfully.', 'success')" onerror="log('FAILED to fetch MindAR CDNs', 'err')"></script>
 
   <script>
     const startScreen = document.getElementById('start-screen');
@@ -79,53 +121,84 @@
     const container = document.getElementById('container');
 
     startBtn.addEventListener('click', async () => {
+      log("Start button pressed. Initializing hardware contexts...");
       startScreen.classList.add('hidden');
-      hintBanner.style.display = 'block';
+      hintBanner.classList.remove('hidden');
+      hintBanner.textContent = "Setting up hardware loop...";
 
-      // 1. Initialize the baseline MindAR Core Controller
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: container,
-        imageTargetSrc: './targets.mind',
-        uiLoading: "no",
-        uiScanning: "no"
-      });
+      try {
+        log("Testing targets.mind file availability...");
+        const res = await fetch('./targets.mind', { method: 'HEAD' });
+        if (!res.ok) {
+          log(`targets.mind returned server status: ${res.status}. Check your filename location!`, 'err');
+          return;
+        }
+        log("targets.mind signature verified successfully.", 'success');
+      } catch (e) {
+        log("Network block: Could not reach targets.mind.", 'err');
+        return;
+      }
 
-      const {renderer, scene, camera} = mindarThree;
+      try {
+        log("Constructing MindARThree renderer instance...");
+        
+        if (!window.MINDAR || !window.MINDAR.IMAGE) {
+          log("Compiler Error: MindAR namespaces are missing from memory profile.", 'err');
+          return;
+        }
 
-      // 2. Build a raw, standard hardware-shaded 3D mesh geometry
-      const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0x00FFFF, 
-        wireframe: false,
-        side: THREE.DoubleSide
-      });
-      
-      const mesh = new THREE.Mesh(geometry, material);
+        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+          container: container,
+          imageTargetSrc: './targets.mind',
+          uiLoading: "no",
+          uiScanning: "no"
+        });
 
-      // 3. Anchor mesh to target matrix zero
-      const anchor = mindarThree.addAnchor(0);
-      anchor.group.add(mesh);
+        const {renderer, scene, camera} = mindarThree;
+        log("WebGL context layers built successfully.", 'success');
 
-      // Hardware Diagnostic Tracking Signals
-      anchor.onTargetFound = () => {
-        hintBanner.textContent = "🎯 MATCH FOUND!";
-        hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)";
-      };
+        // Verify device hardware attributes
+        const gl = renderer.getContext();
+        const precision = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
+        log(`GPU Driver Context: ${renderer.capabilities.isWebGL2 ? 'WebGL 2.0' : 'WebGL 1.0'}`);
+        log(`Shader Version String: ${precision}`, 'warn');
 
-      anchor.onTargetLost = () => {
+        log("Compiling basic shapes geometry vectors...");
+        const geometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00FFFF, wireframe: false });
+        const mesh = new THREE.Mesh(geometry, material);
+
+        const anchor = mindarThree.addAnchor(0);
+        anchor.group.add(mesh);
+        log("Mesh compiled and mapped to Target Anchor Index 0.", 'success');
+
+        anchor.onTargetFound = () => {
+          log("🎯 HARDWARE BLOCK TRIGGER: TARGET FOUND MATCH!", 'success');
+          hintBanner.textContent = "🎯 MATCH FOUND!";
+          hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)";
+        };
+
+        anchor.onTargetLost = () => {
+          log("Target matrix dropped from viewpoint perspective.", 'warn');
+          hintBanner.textContent = "Scanning for target image...";
+          hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)";
+        };
+
+        log("Requesting camera runtime session stream...");
+        await mindarThree.start();
+        log("Camera stream attached. Core loop running.", 'success');
         hintBanner.textContent = "Scanning for target image...";
-        hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)";
-      };
 
-      // 4. Fire the engine and start the rendering loops
-      await mindarThree.start();
-      
-      renderer.setAnimationLoop(() => {
-        // Slow constant calculation loop rotation to verify visual depth
-        mesh.rotation.x += 0.01;
-        mesh.rotation.y += 0.01;
-        renderer.render(scene, camera);
-      });
+        renderer.setAnimationLoop(() => {
+          mesh.rotation.x += 0.01;
+          mesh.rotation.y += 0.01;
+          renderer.render(scene, camera);
+        });
+
+      } catch (hardwareError) {
+        log(`ENGINE CONFIG FAILURE: ${hardwareError.message}`, 'err');
+        console.error(hardwareError);
+      }
     });
   </script>
 </body>
