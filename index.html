@@ -129,65 +129,45 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <a-entity mindar-image-target="targetIndex: 0">
+      <a-entity mindar-image-target="targetIndex: 0">
 
-      <!-- CUSTOMISATION ▶ Change value="…" to your own text -->
+      <a-plane 
+        position="0 0 0" 
+        rotation="0 0 0" 
+        width="1" 
+        height="0.6" 
+        color="#0a0a0f" 
+        opacity="0.8"
+      ></a-plane>
+
       <a-text
         value="Hello, AR World!"
-        position="0 0.15 0"
-        rotation="-90 0 0"
+        position="0 0 0.05"
+        rotation="0 0 0"
         color="#7c6af7"
-        width="1.6"
+        width="2"
         align="center"
         font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
-        animation="property: rotation;
-                   from: -90 0 0;
-                   to: -90 360 0;
-                   dur: 6000;
-                   easing: linear;
-                   loop: true"
       ></a-text>
 
       <a-torus
-        position="0 0 0"
-        rotation="-90 0 0"
-        radius="0.4"
+        position="0 0 0.01"
+        rotation="0 0 0"
+        radius="0.5"
         radius-tubular="0.01"
         color="#7c6af7"
         opacity="0.6"
-        animation="property: scale;
-                   from: 1 1 1;
-                   to: 1.15 1.15 1.15;
-                   dur: 1200;
-                   direction: alternate;
-                   easing: easeInOutSine;
-                   loop: true"
+        animation="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; dur: 1200; direction: alternate; easing: easeInOutSine; loop: true"
       ></a-torus>
 
       <a-sphere
-        position="0 0.32 0"
-        radius="0.07"
+        position="0 0 0.2"
+        radius="0.08"
         color="#f7c86a"
         metalness="0.8"
         roughness="0.2"
-        animation="property: position;
-                   from: 0 0.28 0;
-                   to: 0 0.38 0;
-                   dur: 1400;
-                   direction: alternate;
-                   easing: easeInOutSine;
-                   loop: true"
+        animation="property: position; from: 0 -0.1 0.2; to: 0 0.1 0.2; dur: 1400; direction: alternate; easing: easeInOutSine; loop: true"
       ></a-sphere>
-
-      <!-- Uncomment to use a GLB model instead:
-      <a-gltf-model
-        src="#my-model"
-        position="0 0.1 0"
-        rotation="-90 0 0"
-        scale="0.5 0.5 0.5"
-        animation-mixer="clip: *; loop: repeat"
-      ></a-gltf-model>
-      -->
 
     </a-entity>
   </a-scene>
