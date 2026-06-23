@@ -2,19 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Web AR — Production Build</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web AR — Restored Tracking Build</title>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; }
-    #container { width: 100vw; height: 100vh; position: relative; }
-    
-    /* Strict CSS Layering: Force camera to background, WebGL Canvas to foreground */
-    #container video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-    #container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a0a0f; }
 
     .overlay {
       position: fixed;
@@ -25,25 +21,39 @@
       justify-content: center;
       gap: 20px;
       z-index: 9999;
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       color: #e0e0f0;
-      background: #0a0a0f;
       text-align: center;
-      padding: 24px;
+      padding: 32px;
+      background: #0a0a0f;
+      transition: opacity 0.5s ease;
     }
-    .hidden { display: none !important; }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+    .overlay strong { font-size: 22px; font-weight: 700; }
+    .overlay p      { font-size: 15px; opacity: 0.7; line-height: 1.6; }
 
     #start-btn {
-      padding: 16px 48px;
+      margin-top: 8px;
+      padding: 14px 40px;
       border: none;
       border-radius: 32px;
       background: #7c6af7;
       color: #fff;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 600;
       cursor: pointer;
       box-shadow: 0 4px 24px rgba(124,106,247,0.4);
     }
+    #start-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
+
+    .spinner {
+      width: 52px; height: 52px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #7c6af7;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     #hint-banner {
       position: fixed;
@@ -55,89 +65,144 @@
       color: #e0e0f0;
       padding: 12px 24px;
       border-radius: 24px;
-      font-family: system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 14px;
       z-index: 1000;
+      pointer-events: none;
       border: 1px solid rgba(124,106,247,0.3);
-      display: none;
-      transition: background-color 0.2s;
+      opacity: 0;
+      transition: opacity 0.3s, background-color 0.3s;
+    }
+    #hint-banner.visible { opacity: 1; }
+
+    /* Strict hardware override layers to align the viewports */
+    body > video {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
+      z-index: 1 !important;
+    }
+    .a-canvas {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 2 !important;
     }
   </style>
 </head>
 <body>
 
   <div id="start-screen" class="overlay">
-    <div style="font-size: 56px;">🚀</div>
-    <strong>Web AR Engine</strong>
-    <p>Pure WebGL Production Pipeline</p>
-    <button id="start-btn">Start Experience</button>
+    <div style="font-size: 56px;">📷</div>
+    <strong>Web AR Experience</strong>
+    <p id="ready-msg">Getting ready…</p>
+    <button id="start-btn" disabled>Getting ready…</button>
+  </div>
+
+  <div id="loading-screen" class="overlay hidden">
+    <div class="spinner"></div>
+    <strong>Loading Engine…</strong>
+    <p id="status-msg">Setting up target files.</p>
   </div>
 
   <div id="hint-banner">Scanning for target image...</div>
-  
-  <div id="container"></div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
+    embedded
+    renderer="colorManagement: true; precision: highp;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+  >
+    <a-assets></a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+
+    <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
+      
+      <a-sphere 
+        position="0 0 0.1" 
+        radius="0.25" 
+        color="#00FF00"
+        animation="property: position; from: 0 -0.05 0.1; to: 0 0.05 0.1; dur: 1000; direction: alternate; easing: easeInOutSine; loop: true"
+      ></a-sphere>
+
+    </a-entity>
+  </a-scene>
 
   <script>
-    const startScreen = document.getElementById('start-screen');
-    const startBtn = document.getElementById('start-btn');
-    const hintBanner = document.getElementById('hint-banner');
-    const container = document.getElementById('container');
+    const startScreen   = document.getElementById('start-screen');
+    const loadingScreen = document.getElementById('loading-screen');
+    const statusMsg      = document.getElementById('status-msg');
+    const readyMsg       = document.getElementById('ready-msg');
+    const hintBanner    = document.getElementById('hint-banner');
+    const startBtn      = document.getElementById('start-btn');
+    const scene         = document.querySelector('a-scene');
+    const arTarget      = document.getElementById('ar-target');
+
+    let arSystem = null;
+
+    scene.addEventListener('loaded', () => {
+      arSystem = scene.systems['mindar-image-system'];
+      if (!arSystem) {
+        readyMsg.textContent = 'AR failed to init. Please refresh.';
+        return;
+      }
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start AR';
+      readyMsg.textContent = 'Ready! Align your target image in the viewfinder once launched.';
+    });
 
     startBtn.addEventListener('click', async () => {
+      if (!arSystem) return;
       startScreen.classList.add('hidden');
-      hintBanner.style.display = 'block';
+      loadingScreen.classList.remove('hidden');
+      statusMsg.textContent = 'Opening Camera Stream...';
 
-      // 1. Initialize the baseline MindAR Core Controller using direct paths
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: container,
-        imageTargetSrc: './targets.mind',
-        uiLoading: "no",
-        uiScanning: "no"
-      });
-
-      const {renderer, scene, camera} = mindarThree;
-
-      // 2. Build a highly visible, physically accurate 3D geometry mesh group
-      const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0x00FFFF, 
-        wireframe: false,
-        side: THREE.DoubleSide
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      
-      // Shift the mesh forward on the Z axis so it hovers cleanly over the target
-      mesh.position.z = 0.25;
-
-      // 3. Anchor the mesh group directly to the tracking signature index
-      const anchor = mindarThree.addAnchor(0);
-      anchor.group.add(mesh);
-
-      // Hardware Event Handlers
-      anchor.onTargetFound = () => {
-        hintBanner.textContent = "🎯 TARGET LOCKED";
-        hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; // Turns Green
-      };
-
-      anchor.onTargetLost = () => {
-        hintBanner.textContent = "Scanning for target image...";
-        hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)";
-      };
-
-      // 4. Start the camera feed and trigger the immediate rendering loop
       try {
-        await mindarThree.start();
-        
-        renderer.setAnimationLoop(() => {
-          // Add a constant rotation spin so you can instantly see 3D structural depth
-          mesh.rotation.x += 0.01;
-          mesh.rotation.y += 0.01;
-          renderer.render(scene, camera);
-        });
+        await arSystem.start();
       } catch (err) {
-        alert("AR Pipeline initialization failed: " + err.message);
+        showError('Camera Error', err.message || 'Permission denied.');
       }
     });
+
+    scene.addEventListener('arReady', () => {
+      loadingScreen.classList.add('hidden');
+      hintBanner.classList.add('visible');
+    });
+
+    // Dynamic Tracking Layer Realignment Hook
+    scene.addEventListener('targetFound', (event) => {
+      const foundIndex = event.detail.targetIndex;
+      hintBanner.textContent = `🎯 MATCH FOUND (INDEX: ${foundIndex})`;
+      hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; 
+      hintBanner.classList.add('visible');
+      
+      if (arTarget) {
+        arTarget.setAttribute('mindar-image-target', `targetIndex: ${foundIndex}`);
+      }
+    });
+
+    scene.addEventListener('targetLost', () => {
+      hintBanner.textContent = "Scanning for target image...";
+      hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)"; 
+    });
+
+    function showError(title, detail) {
+      loadingScreen.classList.remove('hidden');
+      loadingScreen.innerHTML = `
+        <div style="text-align:center;padding:32px;">
+          <div style="font-size:40px;">⚠️</div>
+          <strong style="color:#f77c6a;">${title}</strong>
+          <p style="margin-top:12px;opacity:0.8;">${detail}</p>
+          <button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#7c6af7;color:#fff;border:none;border-radius:20px;">Retry</button>
+        </div>`;
+    }
   </script>
 </body>
 </html>
