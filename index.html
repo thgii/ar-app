@@ -98,7 +98,6 @@
       const {renderer, scene, camera} = mindarThree;
 
       // 2. Build a highly visible, physically accurate 3D geometry mesh group
-      // Using a standard scale unit that maps perfectly to physical target boundaries
       const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
       const material = new THREE.MeshBasicMaterial({
         color: 0x00FFFF, 
@@ -110,7 +109,7 @@
       // Shift the mesh forward on the Z axis so it hovers cleanly over the target
       mesh.position.z = 0.25;
 
-      // 3. Anchor the mesh group directly to the first tracking signature index
+      // 3. Anchor the mesh group directly to the tracking signature index
       const anchor = mindarThree.addAnchor(0);
       anchor.group.add(mesh);
 
