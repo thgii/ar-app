@@ -5,36 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Web AR — Image Tracking</title>
 
-  <!-- =====================================================================
-    STEP 1 — CDN SCRIPTS (no build tools needed)
-    Load A-Frame first, then the MindAR A-Frame integration.
-    Always pin to specific versions so your app doesn't break on updates.
-  ====================================================================== -->
+  <!-- CDN SCRIPTS — A-Frame first, then MindAR's A-Frame integration -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    /* Keep the page edge-to-edge so the camera feed fills the screen */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; }
+    body { overflow: hidden; background: #0a0a0f; }
 
-    /* ── Loading overlay ──────────────────────────────────────────────── */
-    #loading-screen {
+    /* ── Shared overlay base ───────────────────────────────────────── */
+    .overlay {
       position: fixed;
       inset: 0;
-      background: #0a0a0f;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 24px;
+      gap: 20px;
       z-index: 9999;
       font-family: 'Segoe UI', system-ui, sans-serif;
       color: #e0e0f0;
-      transition: opacity 0.6s ease;
+      text-align: center;
+      padding: 32px;
+      background: #0a0a0f;
+      transition: opacity 0.5s ease;
     }
-    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+    .overlay strong  { font-size: 22px; font-weight: 700; }
+    .overlay p       { font-size: 15px; opacity: 0.7; line-height: 1.6; }
 
+    /* ── Start screen ──────────────────────────────────────────────── */
+    /*
+      WHY a tap-to-start button?
+      Chrome on Android only fires the camera permission prompt when
+      getUserMedia() is called from a direct user gesture (a tap or click).
+      If autoStart:true is used, MindAR calls getUserMedia() during page
+      load — which is NOT a user gesture — so Chrome silently blocks it
+      without ever showing the "Allow camera" dialog.
+      Setting autoStart:false and calling ar.start() from a button click
+      satisfies Chrome's user-gesture requirement every time.
+    */
+    #start-screen .icon { font-size: 56px; margin-bottom: 4px; }
+    #start-btn {
+      margin-top: 8px;
+      padding: 14px 40px;
+      border: none;
+      border-radius: 32px;
+      background: #7c6af7;
+      color: #fff;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(124,106,247,0.4);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    #start-btn:active { transform: scale(0.96); box-shadow: none; }
+
+    /* ── Loading screen (shown after tap) ──────────────────────────── */
     .spinner {
       width: 52px; height: 52px;
       border: 3px solid rgba(255,255,255,0.1);
@@ -44,10 +71,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    #loading-screen p { font-size: 15px; opacity: 0.7; letter-spacing: 0.03em; }
-    #loading-screen strong { font-size: 19px; font-weight: 600; }
-
-    /* ── "Point camera" hint banner ───────────────────────────────────── */
+    /* ── Hint banner (shown once AR is live) ───────────────────────── */
     #hint-banner {
       position: fixed;
       bottom: 32px;
@@ -64,33 +88,46 @@
       z-index: 1000;
       pointer-events: none;
       border: 1px solid rgba(124,106,247,0.3);
+      opacity: 0;
+      transition: opacity 0.5s ease;
     }
+    #hint-banner.visible { opacity: 1; }
   </style>
 </head>
 <body>
 
-  <!-- Loading overlay — shown while MindAR initialises the .mind file -->
-  <div id="loading-screen">
-    <div class="spinner"></div>
-    <strong>Starting AR…</strong>
-    <p>Please allow camera access when prompted.</p>
+  <!-- ── 1. START SCREEN ───────────────────────────────────────────────
+    Shown immediately on page load. The user must tap "Start AR" before
+    any camera access is requested. This is the fix for Chrome Android
+    not showing the permission prompt.
+  ────────────────────────────────────────────────────────────────────── -->
+  <div id="start-screen" class="overlay">
+    <div class="icon">📷</div>
+    <strong>Web AR Experience</strong>
+    <p>Tap the button below to start.<br>Allow camera access when Chrome asks.</p>
+    <button id="start-btn">Start AR</button>
   </div>
 
-  <!-- Hint shown after loading completes -->
+  <!-- ── 2. LOADING SCREEN (hidden until tap) ──────────────────────── -->
+  <div id="loading-screen" class="overlay hidden">
+    <div class="spinner"></div>
+    <strong>Loading…</strong>
+    <p id="status-msg">Setting up the AR engine.</p>
+  </div>
+
+  <!-- ── 3. HINT BANNER ───────────────────────────────────────────── -->
   <div id="hint-banner">📷 Point your camera at the target image</div>
 
-  <!-- ===================================================================
-    STEP 2 — A-FRAME SCENE
-    a-scene carries the special MindAR attributes:
-      • mindar-image  — activates image tracking
-      • embedded      — fills the parent element (full screen)
-      • vr-mode-ui    — hides the default VR headset button
-      • device-orientation-permission-ui — hides the iOS gyro prompt
-  ==================================================================== -->
+  <!-- ================================================================
+    A-FRAME SCENE
+    Key change from previous version:
+      autoStart: false  — MindAR waits for ar.start() to be called
+                          manually from the button click handler below.
+  ================================================================= -->
   <a-scene
     mindar-image="
       imageTargetSrc: ./targets.mind;
-      autoStart: true;
+      autoStart: false;
       uiLoading: no;
       uiScanning: no;
       uiError: no;
@@ -105,50 +142,23 @@
     device-orientation-permission-ui="enabled: false"
   >
 
-    <!-- ── Assets ───────────────────────────────────────────────────────
-      Preload any external assets here (GLB models, images, sounds).
-      A-Frame waits until all assets are loaded before starting the scene.
-
-      CUSTOMISATION ▶ To use a 3-D GLB model instead of (or alongside)
-      the text, uncomment the <a-asset-item> tag below and set src to
-      your own .glb file path. Then see the <a-gltf-model> tag further
-      down in the scene.
-    ──────────────────────────────────────────────────────────────────── -->
     <a-assets>
-      <!-- <a-asset-item id="my-model" src="./my-model.glb"></a-asset-item> -->
+      <!-- Uncomment to use a GLB model:
+      <a-asset-item id="my-model" src="./my-model.glb"></a-asset-item>
+      -->
     </a-assets>
 
-    <!-- ── Camera ───────────────────────────────────────────────────────
-      MindAR hijacks this camera to drive the AR view. Leave it as-is.
-    ──────────────────────────────────────────────────────────────────── -->
+    <!-- MindAR controls this camera — leave position and look-controls as-is -->
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- =================================================================
-      STEP 3 — IMAGE TARGET ENTITY
-      <a-entity mindar-image-target="targetIndex: 0"> links this group
-      of 3-D objects to the FIRST image in your .mind file.
-
-      If you compiled multiple images into one .mind file:
-        • Image 1 → targetIndex: 0
-        • Image 2 → targetIndex: 1
-        • Image 3 → targetIndex: 2  …and so on.
-
-      Everything INSIDE this entity is positioned relative to the centre
-      of the physical target image. The target image's shorter edge is
-      normalised to 1 A-Frame unit wide.
-    ================================================================== -->
+    <!-- ===============================================================
+      IMAGE TARGET
+      targetIndex: 0 = first image compiled into targets.mind
+      Everything inside here floats over your physical target image.
+    =============================================================== -->
     <a-entity mindar-image-target="targetIndex: 0">
 
-      <!-- ── 3-D Text label ──────────────────────────────────────────────
-        position  : X  Y  Z  (Y=0.15 floats it just above the target)
-        rotation  : -90 on X rotates the text to lie flat relative to the
-                    target, then 0 on Y/Z keeps it facing the camera.
-        color     : hex or CSS colour name
-        width     : controls text wrapping width in scene units
-        align     : left | center | right
-
-        CUSTOMISATION ▶ Change the "value" attribute to your own text.
-      ──────────────────────────────────────────────────────────────────── -->
+      <!-- 3-D text — CUSTOMISATION: change value="…" to your own text -->
       <a-text
         value="Hello, AR World!"
         position="0 0.15 0"
@@ -165,10 +175,7 @@
                    loop: true"
       ></a-text>
 
-      <!-- ── Decorative ring ─────────────────────────────────────────────
-        A flat torus (donut) that pulses gently underneath the text.
-        Remove or restyle as you like.
-      ──────────────────────────────────────────────────────────────────── -->
+      <!-- Decorative pulsing ring -->
       <a-torus
         position="0 0 0"
         rotation="-90 0 0"
@@ -185,10 +192,7 @@
                    loop: true"
       ></a-torus>
 
-      <!-- ── Floating sphere ────────────────────────────────────────────
-        A small metallic sphere bobbing above the ring.
-        Remove or restyle as you like.
-      ──────────────────────────────────────────────────────────────────── -->
+      <!-- Floating sphere -->
       <a-sphere
         position="0 0.32 0"
         radius="0.07"
@@ -204,16 +208,7 @@
                    loop: true"
       ></a-sphere>
 
-      <!-- ── GLB model (uncomment to use) ─────────────────────────────────
-        If you'd rather display a 3-D model than the primitives above,
-        uncomment the block below and delete (or keep) the shapes above.
-
-        CUSTOMISATION ▶
-          1. Place your .glb file in the same folder as index.html.
-          2. Add <a-asset-item id="my-model" src="./my-model.glb"> in
-             the <a-assets> block near the top.
-          3. Uncomment the tag below and adjust position / scale.
-
+      <!-- GLB model (uncomment to use instead of / alongside the shapes above)
       <a-gltf-model
         src="#my-model"
         position="0 0.1 0"
@@ -221,40 +216,115 @@
         scale="0.5 0.5 0.5"
         animation-mixer="clip: *; loop: repeat"
       ></a-gltf-model>
-      ──────────────────────────────────────────────────────────────────── -->
+      -->
 
     </a-entity>
-    <!-- END image target -->
 
   </a-scene>
 
-  <!-- ===================================================================
-    STEP 4 — JAVASCRIPT: hide loading screen once MindAR is ready
-  ==================================================================== -->
+  <!-- ================================================================
+    JAVASCRIPT
+  ================================================================= -->
   <script>
+    const startScreen   = document.getElementById('start-screen');
     const loadingScreen = document.getElementById('loading-screen');
+    const statusMsg     = document.getElementById('status-msg');
     const hintBanner    = document.getElementById('hint-banner');
+    const startBtn      = document.getElementById('start-btn');
+    const scene         = document.querySelector('a-scene');
 
-    // MindAR fires 'arReady' on the <a-scene> element when the .mind file
-    // is parsed and the camera feed is live.
-    document.querySelector('a-scene').addEventListener('arReady', () => {
-      loadingScreen.classList.add('hidden');
-    });
+    function setStatus(msg) { statusMsg.textContent = msg; }
 
-    // If something goes wrong (e.g. camera denied, bad .mind file),
-    // show a friendly error instead of a blank screen.
-    document.querySelector('a-scene').addEventListener('arError', () => {
+    function showError(title, detail) {
       loadingScreen.innerHTML = `
-        <strong style="color:#f77c6a;">AR failed to start</strong>
-        <p>Check that camera permission is granted<br>and the file is served over HTTPS.</p>
+        <div style="text-align:center;padding:0 24px;">
+          <div style="font-size:40px;margin-bottom:12px;">⚠️</div>
+          <strong style="color:#f77c6a;font-size:18px;">${title}</strong>
+          <p style="margin-top:12px;line-height:1.6;opacity:0.8;">${detail}</p>
+          <button onclick="location.reload()"
+            style="margin-top:24px;padding:12px 32px;border:none;border-radius:24px;
+                   background:#7c6af7;color:#fff;font-size:16px;cursor:pointer;">
+            Try Again
+          </button>
+        </div>
       `;
+      loadingScreen.classList.remove('hidden');
+    }
+
+    // ── Button tap: the user gesture that unlocks camera permission ──
+    startBtn.addEventListener('click', async () => {
+
+      // Swap screens
+      startScreen.classList.add('hidden');
+      loadingScreen.classList.remove('hidden');
+      setStatus('Requesting camera access…');
+
+      // ── Optional pre-flight: check targets.mind is reachable ──────
+      try {
+        const res = await fetch('./targets.mind', { method: 'HEAD' });
+        if (!res.ok) {
+          showError(
+            'targets.mind not found (404)',
+            'Make sure <strong>targets.mind</strong> is uploaded to the same folder as index.html.'
+          );
+          return;
+        }
+      } catch {
+        showError(
+          'Could not reach targets.mind',
+          'Check the filename is exactly "targets.mind" and it\'s in the same directory as index.html.'
+        );
+        return;
+      }
+
+      setStatus('Loading AR engine…');
+
+      // ── Tell MindAR to start (calls getUserMedia inside) ──────────
+      // Because this runs synchronously inside a click handler it counts
+      // as a user gesture and Chrome will show the permission prompt.
+      try {
+        const arSystem = scene.systems['mindar-image-system'];
+        await arSystem.start();
+      } catch (err) {
+        // getUserMedia threw — most likely the user tapped "Block"
+        const msg = (err && err.message) ? err.message : String(err);
+        if (msg.toLowerCase().includes('notallowed') ||
+            msg.toLowerCase().includes('permission') ||
+            msg.toLowerCase().includes('denied')) {
+          showError(
+            'Camera access was denied',
+            'Tap <strong>Try Again</strong>, then tap <em>Allow</em> when Chrome asks for the camera. ' +
+            'Or go to Chrome → lock icon → Site settings → Camera → Allow.'
+          );
+        } else {
+          showError('AR failed to start', 'Error: ' + msg);
+        }
+      }
     });
 
-    // Auto-hide the hint banner after 6 seconds
-    setTimeout(() => {
-      hintBanner.style.transition = 'opacity 1s ease';
-      hintBanner.style.opacity = '0';
-    }, 6000);
+    // ── MindAR ready: hide loading, show hint ─────────────────────
+    scene.addEventListener('arReady', () => {
+      loadingScreen.classList.add('hidden');
+      hintBanner.classList.add('visible');
+      setTimeout(() => {
+        hintBanner.style.transition = 'opacity 1s ease';
+        hintBanner.style.opacity = '0';
+      }, 6000);
+    });
+
+    // ── MindAR error event ────────────────────────────────────────
+    scene.addEventListener('arError', (evt) => {
+      const detail = String(evt.detail || '');
+      if (detail.toLowerCase().includes('notallowed') ||
+          detail.toLowerCase().includes('camera')) {
+        showError(
+          'Camera access was denied',
+          'Tap <strong>Try Again</strong>, then tap <em>Allow</em> when Chrome asks for the camera.'
+        );
+      } else {
+        showError('AR failed to start', 'Detail: ' + (detail || 'unknown'));
+      }
+    });
   </script>
 
 </body>
