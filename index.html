@@ -75,7 +75,6 @@
     }
     #hint-banner.visible { opacity: 1; }
 
-    /* MindAR and A-Frame will now handle video scaling automatically */
     .a-canvas {
       z-index: 2 !important;
     }
@@ -119,7 +118,7 @@
     </a-entity>
 
     <a-entity id="ar-target-1" mindar-image-target="targetIndex: 1">
-      </a-entity>
+    </a-entity>
   </a-scene>
 
   <script>
@@ -166,11 +165,18 @@
       showError('Pipeline Error', 'Could not open WebAR target tracking layers.');
     });
 
+    // Flexible extraction check to intercept tracking variations safely
     scene.addEventListener('targetFound', (event) => {
-      // Safety guard clause to fix MindAR's empty event payload bug
-      if (!event || !event.detail) return;
+      let foundIndex = 0;
 
-      const foundIndex = event.detail.targetIndex;
+      if (event && event.detail) {
+        if (typeof event.detail.targetIndex !== 'undefined') {
+          foundIndex = event.detail.targetIndex;
+        } else if (typeof event.detail === 'number') {
+          foundIndex = event.detail; // Fallback structure configuration
+        }
+      }
+
       hintBanner.textContent = `🎯 MATCH FOUND (INDEX: ${foundIndex})`;
       hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; 
       hintBanner.classList.add('visible');
