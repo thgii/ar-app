@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Web AR — Hardware Debugger</title>
+  <title>Web AR — Dynamic Index Tracking</title>
+
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; }
-    #container { width: 100vw; height: 100vh; position: relative; background: #111; }
-    
-    #container video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-    #container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a0a0f; }
 
     .overlay {
       position: fixed;
@@ -21,13 +21,19 @@
       justify-content: center;
       gap: 20px;
       z-index: 9999;
-      font-family: system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       color: #e0e0f0;
+      text-align: center;
+      padding: 32px;
       background: #0a0a0f;
+      transition: opacity 0.5s ease;
     }
-    .hidden { display: none !important; }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+    .overlay strong { font-size: 22px; font-weight: 700; }
+    .overlay p      { font-size: 15px; opacity: 0.7; line-height: 1.6; }
 
     #start-btn {
+      margin-top: 8px;
       padding: 14px 40px;
       border: none;
       border-radius: 32px;
@@ -36,170 +42,192 @@
       font-size: 17px;
       font-weight: 600;
       cursor: pointer;
+      box-shadow: 0 4px 24px rgba(124,106,247,0.4);
     }
+    #start-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
+
+    .spinner {
+      width: 52px; height: 52px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #7c6af7;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     #hint-banner {
       position: fixed;
-      top: 16px;
+      bottom: 32px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(10,10,20,0.9);
+      background: rgba(10,10,20,0.85);
+      backdrop-filter: blur(8px);
       color: #e0e0f0;
       padding: 12px 24px;
       border-radius: 24px;
-      font-family: system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 14px;
       z-index: 1000;
+      pointer-events: none;
       border: 1px solid rgba(124,106,247,0.3);
+      opacity: 0;
+      transition: opacity 0.3s, background-color 0.3s;
+    }
+    #hint-banner.visible { opacity: 1; }
+
+    /* ── LAYER FIXES TO FORCE 3D CANVAS TO THE FRONT ── */
+    body > video {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
+      z-index: 1 !important;
     }
 
-    /* HARDWARE DEBUG CONSOLE BOX */
-    #debug-log {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 40vh;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
-      color: #00ff00;
-      font-family: monospace;
-      font-size: 11px;
-      padding: 12px;
-      overflow-y: auto;
-      z-index: 10000;
-      border-top: 2px solid #7c6af7;
-      pointer-events: auto;
+    .a-canvas {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 2 !important;
     }
-    .log-err { color: #ff3333; font-weight: bold; }
-    .log-warn { color: #ffcc00; }
-    .log-success { color: #00ffff; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <div id="start-screen" class="overlay">
-    <div style="font-size: 56px;">🛠️</div>
-    <strong>AR Debug Pipeline</strong>
-    <p>This build prints runtime errors directly onto the screen.</p>
-    <button id="start-btn">Launch Diagnostics</button>
+    <div style="font-size: 56px;">📷</div>
+    <strong>Web AR Experience</strong>
+    <p id="ready-msg">Getting ready…</p>
+    <button id="start-btn" disabled>Getting ready…</button>
   </div>
 
-  <div id="hint-banner" class="hidden">Engine Status: Idle</div>
-  
-  <div id="container"></div>
+  <div id="loading-screen" class="overlay hidden">
+    <div class="spinner"></div>
+    <strong>Loading Engine…</strong>
+    <p id="status-msg">Setting up target files.</p>
+  </div>
 
-  <div id="debug-log">=== DIAGNOSTIC CONSOLE INITIALIZED ===<br></div>
+  <div id="hint-banner">Scanning for target image...</div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
+    embedded
+    renderer="colorManagement: true; precision: highp; powerPreference: high-performance;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+  >
+    <a-assets></a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false" camera="near: 0.01; far: 100"></a-camera>
+
+    <a-entity id="ar-target" mindar-image-target="targetIndex: 0" scale="2 2 2">
+      
+      <a-plane 
+        position="0 0 0" 
+        rotation="0 0 0" 
+        width="1.5" 
+        height="1.5" 
+        color="#FF00FF" 
+        opacity="0.85"
+      ></a-plane>
+
+      <a-box 
+        position="0 0 0.2" 
+        rotation="0 45 0" 
+        width="0.6" 
+        height="0.6" 
+        depth="0.6" 
+        color="#00FFFF"
+        animation="property: rotation; to: 0 405 0; dur: 3000; easing: linear; loop: true"
+      ></a-box>
+
+    </a-entity>
+  </a-scene>
 
   <script>
-    const debugBox = document.getElementById('debug-log');
-    
-    function log(msg, type = '') {
-      const span = document.createElement('span');
-      if(type) span.className = `log-${type}`;
-      span.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
-      debugBox.appendChild(span);
-      debugBox.scrollTop = debugBox.scrollHeight;
-    }
+    const startScreen   = document.getElementById('start-screen');
+    const loadingScreen = document.getElementById('loading-screen');
+    const statusMsg      = document.getElementById('status-msg');
+    const readyMsg       = document.getElementById('ready-msg');
+    const hintBanner    = document.getElementById('hint-banner');
+    const startBtn      = document.getElementById('start-btn');
+    const scene         = document.querySelector('a-scene');
 
-    // Capture unhandled global runtime page scripts crashes
-    window.onerror = function(message, source, lineno, colno, error) {
-      log(`CRASH: ${message} at line ${lineno}`, 'err');
-      return false;
-    };
+    let arSystem = null;
 
-    log("Loading WebGL Dependencies...");
-  </script>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js" onload="log('Three.js Core Engine Loaded successfully.', 'success')" onerror="log('FAILED to fetch Three.js CDNs', 'err')"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js" onload="log('MindAR Tracking Engine Loaded successfully.', 'success')" onerror="log('FAILED to fetch MindAR CDNs', 'err')"></script>
-
-  <script>
-    const startScreen = document.getElementById('start-screen');
-    const startBtn = document.getElementById('start-btn');
-    const hintBanner = document.getElementById('hint-banner');
-    const container = document.getElementById('container');
+    scene.addEventListener('loaded', () => {
+      arSystem = scene.systems['mindar-image-system'];
+      if (!arSystem) {
+        readyMsg.textContent = 'AR failed to init. Please refresh.';
+        return;
+      }
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start AR';
+      readyMsg.textContent = 'Ready! Make sure your target image is printed or open on a nearby screen.';
+    });
 
     startBtn.addEventListener('click', async () => {
-      log("Start button pressed. Initializing hardware contexts...");
+      if (!arSystem) return;
       startScreen.classList.add('hidden');
-      hintBanner.classList.remove('hidden');
-      hintBanner.textContent = "Setting up hardware loop...";
+      loadingScreen.classList.remove('hidden');
+      statusMsg.textContent = 'Verifying target signatures...';
 
       try {
-        log("Testing targets.mind file availability...");
         const res = await fetch('./targets.mind', { method: 'HEAD' });
-        if (!res.ok) {
-          log(`targets.mind returned server status: ${res.status}. Check your filename location!`, 'err');
-          return;
-        }
-        log("targets.mind signature verified successfully.", 'success');
-      } catch (e) {
-        log("Network block: Could not reach targets.mind.", 'err');
+        if (!res.ok) throw new Error();
+      } catch {
+        showError('Target Missing', 'Ensure your file is named precisely "targets.mind" in the same directory.');
         return;
       }
 
+      statusMsg.textContent = 'Opening Camera...';
       try {
-        log("Constructing MindARThree renderer instance...");
-        
-        if (!window.MINDAR || !window.MINDAR.IMAGE) {
-          log("Compiler Error: MindAR namespaces are missing from memory profile.", 'err');
-          return;
-        }
-
-        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-          container: container,
-          imageTargetSrc: './targets.mind',
-          uiLoading: "no",
-          uiScanning: "no"
-        });
-
-        const {renderer, scene, camera} = mindarThree;
-        log("WebGL context layers built successfully.", 'success');
-
-        // Verify device hardware attributes
-        const gl = renderer.getContext();
-        const precision = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
-        log(`GPU Driver Context: ${renderer.capabilities.isWebGL2 ? 'WebGL 2.0' : 'WebGL 1.0'}`);
-        log(`Shader Version String: ${precision}`, 'warn');
-
-        log("Compiling basic shapes geometry vectors...");
-        const geometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-        const material = new THREE.MeshBasicMaterial({ color: 0x00FFFF, wireframe: false });
-        const mesh = new THREE.Mesh(geometry, material);
-
-        const anchor = mindarThree.addAnchor(0);
-        anchor.group.add(mesh);
-        log("Mesh compiled and mapped to Target Anchor Index 0.", 'success');
-
-        anchor.onTargetFound = () => {
-          log("🎯 HARDWARE BLOCK TRIGGER: TARGET FOUND MATCH!", 'success');
-          hintBanner.textContent = "🎯 MATCH FOUND!";
-          hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)";
-        };
-
-        anchor.onTargetLost = () => {
-          log("Target matrix dropped from viewpoint perspective.", 'warn');
-          hintBanner.textContent = "Scanning for target image...";
-          hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)";
-        };
-
-        log("Requesting camera runtime session stream...");
-        await mindarThree.start();
-        log("Camera stream attached. Core loop running.", 'success');
-        hintBanner.textContent = "Scanning for target image...";
-
-        renderer.setAnimationLoop(() => {
-          mesh.rotation.x += 0.01;
-          mesh.rotation.y += 0.01;
-          renderer.render(scene, camera);
-        });
-
-      } catch (hardwareError) {
-        log(`ENGINE CONFIG FAILURE: ${hardwareError.message}`, 'err');
-        console.error(hardwareError);
+        await arSystem.start();
+      } catch (err) {
+        showError('Camera Error', err.message || 'Permission denied.');
       }
     });
+
+    scene.addEventListener('arReady', () => {
+      loadingScreen.classList.add('hidden');
+      hintBanner.classList.add('visible');
+    });
+
+    // ── AUTOMATIC TARGET INDEX REALIGNMENT ──
+    scene.addEventListener('targetFound', (event) => {
+      const foundIndex = event.detail.targetIndex;
+      
+      // Update banner to print out what structural index was hit
+      hintBanner.textContent = `🎯 MATCH FOUND (INDEX: ${foundIndex})`;
+      hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; 
+      hintBanner.classList.add('visible');
+      
+      // Force match the tracking layer anchor to match that real index signature
+      const targetEntity = document.getElementById('ar-target');
+      if (targetEntity) {
+        targetEntity.setAttribute('mindar-image-target', `targetIndex: ${foundIndex}`);
+      }
+    });
+
+    scene.addEventListener('targetLost', () => {
+      hintBanner.textContent = "Scanning for target image...";
+      hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)"; 
+    });
+
+    function showError(title, detail) {
+      loadingScreen.classList.remove('hidden');
+      loadingScreen.innerHTML = `
+        <div style="text-align:center;padding:32px;">
+          <div style="font-size:40px;">⚠️</div>
+          <strong style="color:#f77c6a;">${title}</strong>
+          <p style="margin-top:12px;opacity:0.8;">${detail}</p>
+          <button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#7c6af7;color:#fff;border:none;border-radius:20px;">Retry</button>
+        </div>`;
+    }
   </script>
 </body>
 </html>
