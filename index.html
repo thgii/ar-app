@@ -74,6 +74,29 @@
       transition: opacity 0.3s, background-color 0.3s;
     }
     #hint-banner.visible { opacity: 1; }
+
+    /* ── LAYER FIXES TO FORCE 3D CANVAS TO THE FRONT ── */
+    
+    /* Pin the injected phone camera element down into layer 1 */
+    body > video {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
+      z-index: 1 !important;
+    }
+
+    /* Pull the A-Frame graphics canvas cleanly forward into layer 2 */
+    .a-canvas {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 2 !important;
+    }
   </style>
 </head>
 <body>
@@ -93,7 +116,7 @@
 
   <div id="hint-banner">Scanning for target image...</div>
 
-<a-scene
+  <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
     renderer="
@@ -186,17 +209,15 @@
       hintBanner.classList.add('visible');
     });
 
-    // ── Visual Hardware Diagnostics ──
-    // These fire directly off the computer vision events to bypass 3D camera issues
     arTarget.addEventListener('targetFound', () => {
       hintBanner.textContent = "🎯 MATCH FOUND!";
-      hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; // Flashes Green
+      hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; 
       hintBanner.classList.add('visible');
     });
 
     arTarget.addEventListener('targetLost', () => {
       hintBanner.textContent = "Scanning for target image...";
-      hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)"; // Reverts to dark tint
+      hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)"; 
     });
 
     function showError(title, detail) {
