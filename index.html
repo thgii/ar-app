@@ -75,9 +75,7 @@
     }
     #hint-banner.visible { opacity: 1; }
 
-    /* ── LAYER FIXES TO FORCE 3D CANVAS TO THE FRONT ── */
-    
-    /* Pin the injected phone camera element down into layer 1 */
+    /* ── SYSTEM OVERRIDES TO POSITION THE WEBGL CANVAS OVER THE WEBCAM VIDEO ── */
     body > video {
       position: fixed !important;
       top: 0 !important;
@@ -88,7 +86,6 @@
       z-index: 1 !important;
     }
 
-    /* Pull the A-Frame graphics canvas cleanly forward into layer 2 */
     .a-canvas {
       position: fixed !important;
       top: 0 !important;
@@ -116,7 +113,7 @@
 
   <div id="hint-banner">Scanning for target image...</div>
 
-<a-scene
+  <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
     renderer="colorManagement: true; precision: highp; powerPreference: high-performance;"
