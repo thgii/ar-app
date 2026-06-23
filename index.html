@@ -5,20 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Web AR — Image Tracking</title>
 
-  <!--
-    FIX 1 — SCRIPT LOADING ORDER
-    ─────────────────────────────
-    The previous version loaded both scripts without guaranteeing order.
-    MindAR was executing before A-Frame finished, causing:
-      "Uncaught ReferenceError: AFRAME is not defined"
-
-    The fix: load A-Frame FIRST with no special attributes (blocking),
-    then load MindAR after it. This guarantees A-Frame is fully defined
-    before MindAR tries to register its A-Frame components.
-
-    We also switched A-Frame to the official aframe.io CDN which is
-    more reliable than jsdelivr for this library.
-  -->
+  <!-- A-Frame must fully load before MindAR — do not swap these or add async/defer -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -43,8 +30,8 @@
       transition: opacity 0.5s ease;
     }
     .overlay.hidden { opacity: 0; pointer-events: none; }
-    .overlay strong  { font-size: 22px; font-weight: 700; }
-    .overlay p       { font-size: 15px; opacity: 0.7; line-height: 1.6; }
+    .overlay strong { font-size: 22px; font-weight: 700; }
+    .overlay p      { font-size: 15px; opacity: 0.7; line-height: 1.6; }
 
     #start-screen .icon { font-size: 56px; margin-bottom: 4px; }
     #start-btn {
@@ -60,6 +47,8 @@
       box-shadow: 0 4px 24px rgba(124,106,247,0.4);
     }
     #start-btn:active { transform: scale(0.96); }
+    /* Grey out the button while the scene is still initialising */
+    #start-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
 
     .spinner {
       width: 52px; height: 52px;
@@ -93,13 +82,20 @@
 </head>
 <body>
 
+  <!-- Start screen: visible immediately on page load -->
   <div id="start-screen" class="overlay">
     <div class="icon">📷</div>
     <strong>Web AR Experience</strong>
-    <p>Tap the button below to start.<br>Allow camera access when Chrome asks.</p>
-    <button id="start-btn">Start AR</button>
+    <p id="ready-msg">Getting ready…</p>
+    <!--
+      The button starts disabled and is enabled once the A-Frame scene
+      has fully initialised (the 'loaded' event fires). This ensures
+      scene.systems['mindar-image-system'] actually exists when we call it.
+    -->
+    <button id="start-btn" disabled>Getting ready…</button>
   </div>
 
+  <!-- Loading screen: shown after the user taps Start AR -->
   <div id="loading-screen" class="overlay hidden">
     <div class="spinner"></div>
     <strong>Loading…</strong>
@@ -108,29 +104,6 @@
 
   <div id="hint-banner">📷 Point your camera at the target image</div>
 
-  <!--
-    FIX 2 — .MIND FILE PATH
-    ────────────────────────
-    CUSTOMISATION ▶ Set imageTargetSrc to the path of your .mind file.
-
-    If your GitHub repo looks like this:
-      your-repo/
-      ├── index.html
-      └── targets.mind
-    → use:  imageTargetSrc: ./targets.mind
-
-    If targets.mind is in a subfolder:
-      your-repo/
-      ├── index.html
-      └── assets/
-          └── targets.mind
-    → use:  imageTargetSrc: ./assets/targets.mind
-
-    To double-check: visit the full URL to your .mind file directly in
-    the browser. It should trigger a download. If you get a 404, the
-    path is wrong.
-      e.g. https://username.github.io/repo-name/targets.mind
-  -->
   <a-scene
     mindar-image="
       imageTargetSrc: ./targets.mind;
@@ -206,7 +179,7 @@
                    loop: true"
       ></a-sphere>
 
-      <!-- Uncomment to use a GLB model:
+      <!-- Uncomment to use a GLB model instead:
       <a-gltf-model
         src="#my-model"
         position="0 0.1 0"
@@ -223,9 +196,12 @@
     const startScreen   = document.getElementById('start-screen');
     const loadingScreen = document.getElementById('loading-screen');
     const statusMsg     = document.getElementById('status-msg');
+    const readyMsg      = document.getElementById('ready-msg');
     const hintBanner    = document.getElementById('hint-banner');
     const startBtn      = document.getElementById('start-btn');
     const scene         = document.querySelector('a-scene');
+
+    let arSystem = null; // will be set once the scene is loaded
 
     function setStatus(msg) { statusMsg.textContent = msg; }
 
@@ -245,44 +221,68 @@
       `;
     }
 
+    // ── Wait for A-Frame + MindAR to fully initialise ──────────────────
+    // The 'loaded' event on <a-scene> fires once A-Frame has set up all
+    // systems and components — including mindar-image-system. Only after
+    // this point is it safe to read scene.systems['mindar-image-system'].
+    scene.addEventListener('loaded', () => {
+      arSystem = scene.systems['mindar-image-system'];
+
+      if (!arSystem) {
+        // MindAR system didn't register — likely a script loading issue
+        readyMsg.textContent = 'AR system failed to load. Try refreshing.';
+        startBtn.textContent = 'Refresh';
+        startBtn.disabled = false;
+        startBtn.addEventListener('click', () => location.reload());
+        return;
+      }
+
+      // Scene is ready — enable the button
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start AR';
+      readyMsg.textContent = 'Tap the button below to start.\nAllow camera access when Chrome asks.';
+    });
+
+    // ── Button tap ─────────────────────────────────────────────────────
     startBtn.addEventListener('click', async () => {
+      // Guard: if somehow clicked before scene loaded, do nothing
+      if (!arSystem) return;
+
       startScreen.classList.add('hidden');
       loadingScreen.classList.remove('hidden');
       setStatus('Checking files…');
 
-      // Verify targets.mind is reachable before handing off to MindAR
+      // Confirm targets.mind is reachable
       try {
         const res = await fetch('./targets.mind', { method: 'HEAD' });
         if (!res.ok) {
           showError(
             'targets.mind not found (404)',
-            'Make sure <strong>targets.mind</strong> is in the same folder as index.html on GitHub. ' +
-            'Visit <code>https://YOUR-USERNAME.github.io/YOUR-REPO/targets.mind</code> to confirm.'
+            'Make sure <strong>targets.mind</strong> is in the root of your GitHub repo, ' +
+            'at the same level as index.html.'
           );
           return;
         }
       } catch {
         showError(
           'Could not reach targets.mind',
-          'Check the filename is exactly <code>targets.mind</code> (lowercase) and is in the repo root.'
+          'Check the filename is exactly <code>targets.mind</code> (all lowercase).'
         );
         return;
       }
 
       setStatus('Requesting camera access…');
 
-      // ar.start() is called inside a click handler — this satisfies
-      // Chrome's user-gesture requirement for camera permission prompts.
+      // ar.start() inside a click handler = valid user gesture for Chrome
       try {
-        const arSystem = scene.systems['mindar-image-system'];
         await arSystem.start();
       } catch (err) {
-        const msg = (err && err.message) ? err.message.toLowerCase() : '';
+        const msg = (err && err.message) ? err.message.toLowerCase() : String(err).toLowerCase();
         if (msg.includes('notallowed') || msg.includes('permission') || msg.includes('denied')) {
           showError(
             'Camera access was denied',
-            'Tap <strong>Try Again</strong> and then tap <em>Allow</em> when Chrome asks. ' +
-            'Or: Chrome address bar → lock icon → Site settings → Camera → Allow.'
+            'Tap <strong>Try Again</strong> and tap <em>Allow</em> when Chrome asks. ' +
+            'Or: address bar → lock icon → Site settings → Camera → Allow.'
           );
         } else {
           showError('AR failed to start', 'Error: ' + (err && err.message ? err.message : err));
@@ -290,6 +290,7 @@
       }
     });
 
+    // ── MindAR ready ───────────────────────────────────────────────────
     scene.addEventListener('arReady', () => {
       loadingScreen.classList.add('hidden');
       hintBanner.classList.add('visible');
@@ -299,6 +300,7 @@
       }, 6000);
     });
 
+    // ── MindAR error ───────────────────────────────────────────────────
     scene.addEventListener('arError', (evt) => {
       const detail = String(evt.detail || '').toLowerCase();
       if (detail.includes('notallowed') || detail.includes('camera')) {
