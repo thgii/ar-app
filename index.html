@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Web AR — Image Tracking</title>
 
-  <!-- A-Frame must fully load before MindAR — do not swap these or add async/defer -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -33,7 +32,6 @@
     .overlay strong { font-size: 22px; font-weight: 700; }
     .overlay p      { font-size: 15px; opacity: 0.7; line-height: 1.6; }
 
-    #start-screen .icon { font-size: 56px; margin-bottom: 4px; }
     #start-btn {
       margin-top: 8px;
       padding: 14px 40px;
@@ -46,8 +44,6 @@
       cursor: pointer;
       box-shadow: 0 4px 24px rgba(124,106,247,0.4);
     }
-    #start-btn:active { transform: scale(0.96); }
-    /* Grey out the button while the scene is still initialising */
     #start-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
 
     .spinner {
@@ -64,10 +60,10 @@
       bottom: 32px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(10,10,20,0.72);
+      background: rgba(10,10,20,0.85);
       backdrop-filter: blur(8px);
       color: #e0e0f0;
-      padding: 10px 20px;
+      padding: 12px 24px;
       border-radius: 24px;
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 14px;
@@ -75,73 +71,45 @@
       pointer-events: none;
       border: 1px solid rgba(124,106,247,0.3);
       opacity: 0;
-      transition: opacity 0.5s ease;
+      transition: opacity 0.3s, background-color 0.3s;
     }
     #hint-banner.visible { opacity: 1; }
   </style>
 </head>
 <body>
 
-  <!-- Start screen: visible immediately on page load -->
   <div id="start-screen" class="overlay">
-    <div class="icon">📷</div>
+    <div style="font-size: 56px;">📷</div>
     <strong>Web AR Experience</strong>
     <p id="ready-msg">Getting ready…</p>
-    <!--
-      The button starts disabled and is enabled once the A-Frame scene
-      has fully initialised (the 'loaded' event fires). This ensures
-      scene.systems['mindar-image-system'] actually exists when we call it.
-    -->
     <button id="start-btn" disabled>Getting ready…</button>
   </div>
 
-  <!-- Loading screen: shown after the user taps Start AR -->
   <div id="loading-screen" class="overlay hidden">
     <div class="spinner"></div>
-    <strong>Loading…</strong>
-    <p id="status-msg">Setting up the AR engine.</p>
+    <strong>Loading Engine…</strong>
+    <p id="status-msg">Setting up target files.</p>
   </div>
 
-  <div id="hint-banner">📷 Point your camera at the target image</div>
+  <div id="hint-banner">Scanning for target image...</div>
 
   <a-scene
-    mindar-image="
-      imageTargetSrc: ./targets.mind;
-      autoStart: false;
-      uiLoading: no;
-      uiScanning: no;
-      uiError: no;
-      filterMinCF: 0.001;
-      filterBeta: 0.01;
-      warmupTolerance: 5;
-      missTolerance: 5
-    "
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
     renderer="colorManagement: true; physicallyCorrectLights: true;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
-    <a-assets>
-      <!-- Uncomment to preload a GLB model:
-      <a-asset-item id="my-model" src="./my-model.glb"></a-asset-item>
-      -->
-    </a-assets>
+    <a-assets></a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <a-entity mindar-image-target="targetIndex: 0">
-
-      <a-plane 
-        position="0 0 0" 
-        rotation="0 0 0" 
-        width="1" 
-        height="0.6" 
-        color="#0a0a0f" 
-        opacity="0.8"
-      ></a-plane>
+    <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
+      
+      <a-plane position="0 0 0" rotation="0 0 0" width="1" height="0.6" color="#0a0a0f" opacity="0.85"></a-plane>
 
       <a-text
-        value="Hello, AR World!"
+        value="Target Locked!"
         position="0 0 0.05"
         rotation="0 0 0"
         color="#7c6af7"
@@ -153,21 +121,12 @@
       <a-torus
         position="0 0 0.01"
         rotation="0 0 0"
-        radius="0.5"
+        radius="0.45"
         radius-tubular="0.01"
         color="#7c6af7"
-        opacity="0.6"
+        opacity="0.7"
         animation="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; dur: 1200; direction: alternate; easing: easeInOutSine; loop: true"
       ></a-torus>
-
-      <a-sphere
-        position="0 0 0.2"
-        radius="0.08"
-        color="#f7c86a"
-        metalness="0.8"
-        roughness="0.2"
-        animation="property: position; from: 0 -0.1 0.2; to: 0 0.1 0.2; dur: 1400; direction: alternate; easing: easeInOutSine; loop: true"
-      ></a-sphere>
 
     </a-entity>
   </a-scene>
@@ -175,138 +134,76 @@
   <script>
     const startScreen   = document.getElementById('start-screen');
     const loadingScreen = document.getElementById('loading-screen');
-    const statusMsg     = document.getElementById('status-msg');
-    const readyMsg      = document.getElementById('ready-msg');
+    const statusMsg      = document.getElementById('status-msg');
+    const readyMsg       = document.getElementById('ready-msg');
     const hintBanner    = document.getElementById('hint-banner');
     const startBtn      = document.getElementById('start-btn');
     const scene         = document.querySelector('a-scene');
+    const arTarget      = document.getElementById('ar-target');
 
-    let arSystem = null; // will be set once the scene is loaded
+    let arSystem = null;
 
-    function setStatus(msg) { statusMsg.textContent = msg; }
+    scene.addEventListener('loaded', () => {
+      arSystem = scene.systems['mindar-image-system'];
+      if (!arSystem) {
+        readyMsg.textContent = 'AR failed to init. Please refresh.';
+        return;
+      }
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start AR';
+      readyMsg.textContent = 'Ready! Make sure your target image is printed or open on a nearby screen.';
+    });
+
+    startBtn.addEventListener('click', async () => {
+      if (!arSystem) return;
+      startScreen.classList.add('hidden');
+      loadingScreen.classList.remove('hidden');
+      statusMsg.textContent = 'Verifying target signatures...';
+
+      try {
+        const res = await fetch('./targets.mind', { method: 'HEAD' });
+        if (!res.ok) throw new Error();
+      } catch {
+        showError('Target Missing', 'Ensure your file is named precisely "targets.mind" in the same directory.');
+        return;
+      }
+
+      statusMsg.textContent = 'Opening Camera...';
+      try {
+        await arSystem.start();
+      } catch (err) {
+        showError('Camera Error', err.message || 'Permission denied.');
+      }
+    });
+
+    scene.addEventListener('arReady', () => {
+      loadingScreen.classList.add('hidden');
+      hintBanner.classList.add('visible');
+    });
+
+    // ── Visual Hardware Diagnostics ──
+    // These fire directly off the computer vision events to bypass 3D camera issues
+    arTarget.addEventListener('targetFound', () => {
+      hintBanner.textContent = "🎯 MATCH FOUND!";
+      hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; // Flashes Green
+      hintBanner.classList.add('visible');
+    });
+
+    arTarget.addEventListener('targetLost', () => {
+      hintBanner.textContent = "Scanning for target image...";
+      hintBanner.style.backgroundColor = "rgba(10,10,20,0.85)"; // Reverts to dark tint
+    });
 
     function showError(title, detail) {
       loadingScreen.classList.remove('hidden');
       loadingScreen.innerHTML = `
-        <div style="text-align:center;padding:0 24px;">
-          <div style="font-size:40px;margin-bottom:12px;">⚠️</div>
-          <strong style="color:#f77c6a;font-size:18px;">${title}</strong>
-          <p style="margin-top:12px;line-height:1.6;opacity:0.8;">${detail}</p>
-          <button onclick="location.reload()"
-            style="margin-top:24px;padding:12px 32px;border:none;border-radius:24px;
-                   background:#7c6af7;color:#fff;font-size:16px;cursor:pointer;">
-            Try Again
-          </button>
-        </div>
-      `;
+        <div style="text-align:center;padding:32px;">
+          <div style="font-size:40px;">⚠️</div>
+          <strong style="color:#f77c6a;">${title}</strong>
+          <p style="margin-top:12px;opacity:0.8;">${detail}</p>
+          <button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#7c6af7;color:#fff;border:none;border-radius:20px;">Retry</button>
+        </div>`;
     }
-
-    // ── Wait for A-Frame + MindAR to fully initialise ──────────────────
-    // The 'loaded' event on <a-scene> fires once A-Frame has set up all
-    // systems and components — including mindar-image-system. Only after
-    // this point is it safe to read scene.systems['mindar-image-system'].
-    scene.addEventListener('loaded', () => {
-      arSystem = scene.systems['mindar-image-system'];
-
-      if (!arSystem) {
-        // MindAR system didn't register — likely a script loading issue
-        readyMsg.textContent = 'AR system failed to load. Try refreshing.';
-        startBtn.textContent = 'Refresh';
-        startBtn.disabled = false;
-        startBtn.addEventListener('click', () => location.reload());
-        return;
-      }
-
-      // Scene is ready — enable the button
-      startBtn.disabled = false;
-      startBtn.textContent = 'Start AR';
-      readyMsg.textContent = 'Tap the button below to start.\nAllow camera access when Chrome asks.';
-    });
-
-    // ── Button tap ─────────────────────────────────────────────────────
-    startBtn.addEventListener('click', async () => {
-      // Guard: if somehow clicked before scene loaded, do nothing
-      if (!arSystem) return;
-
-      startScreen.classList.add('hidden');
-      loadingScreen.classList.remove('hidden');
-      setStatus('Checking files…');
-
-      // Confirm targets.mind is reachable
-      try {
-        const res = await fetch('./targets.mind', { method: 'HEAD' });
-        if (!res.ok) {
-          showError(
-            'targets.mind not found (404)',
-            'Make sure <strong>targets.mind</strong> is in the root of your GitHub repo, ' +
-            'at the same level as index.html.'
-          );
-          return;
-        }
-      } catch {
-        showError(
-          'Could not reach targets.mind',
-          'Check the filename is exactly <code>targets.mind</code> (all lowercase).'
-        );
-        return;
-      }
-
-      setStatus('Requesting camera access…');
-
-      // ar.start() inside a click handler = valid user gesture for Chrome
-      try {
-        await arSystem.start();
-      } catch (err) {
-        const msg = (err && err.message) ? err.message.toLowerCase() : String(err).toLowerCase();
-        if (msg.includes('notallowed') || msg.includes('permission') || msg.includes('denied')) {
-          showError(
-            'Camera access was denied',
-            'Tap <strong>Try Again</strong> and tap <em>Allow</em> when Chrome asks. ' +
-            'Or: address bar → lock icon → Site settings → Camera → Allow.'
-          );
-        } else {
-          showError('AR failed to start', 'Error: ' + (err && err.message ? err.message : err));
-        }
-      }
-    });
-
-    // ── MindAR ready ───────────────────────────────────────────────────
-    scene.addEventListener('arReady', () => {
-      loadingScreen.classList.add('hidden');
-      hintBanner.classList.add('visible');
-      setTimeout(() => {
-        hintBanner.style.transition = 'opacity 1s ease';
-        hintBanner.style.opacity = '0';
-      }, 6000);
-    });
-
-    // ── MindAR error ───────────────────────────────────────────────────
-    scene.addEventListener('arError', (evt) => {
-      const detail = String(evt.detail || '').toLowerCase();
-      if (detail.includes('notallowed') || detail.includes('camera')) {
-        showError(
-          'Camera access was denied',
-          'Tap <strong>Try Again</strong> and allow camera access when prompted.'
-        );
-      } else {
-        showError('AR failed to start', 'Detail: ' + (evt.detail || 'unknown'));
-      }
-    });
   </script>
-
 </body>
 </html>
-
-<!--
-╔══════════════════════════════════════════════════════════════════════════╗
-║  QUICK REFERENCE — WHERE TO CHANGE THINGS                               ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║  .mind file path  │ mindar-image → imageTargetSrc: ./targets.mind       ║
-║  Target index     │ mindar-image-target → targetIndex: 0                ║
-║  AR text          │ <a-text> → value="…"                                ║
-║  Text colour      │ <a-text> → color="#7c6af7"                          ║
-║  Ring colour      │ <a-torus> → color="#7c6af7"                         ║
-║  Sphere colour    │ <a-sphere> → color="#f7c86a"                        ║
-║  3-D model        │ uncomment <a-gltf-model> + <a-asset-item>           ║
-╚══════════════════════════════════════════════════════════════════════════╝
--->
