@@ -93,40 +93,36 @@
 
   <div id="hint-banner">Scanning for target image...</div>
 
-  <a-scene
+<a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
-    renderer="colorManagement: true; physicallyCorrectLights: true;"
+    renderer="colorManagement: false; precision: mediump;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
     <a-assets></a-assets>
 
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
 
     <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
       
-      <a-plane position="0 0 0" rotation="0 0 0" width="1" height="0.6" color="#0a0a0f" opacity="0.85"></a-plane>
+      <a-plane 
+        position="0 0 0" 
+        rotation="0 0 0" 
+        width="1" 
+        height="1" 
+        color="#FF00FF" 
+        opacity="0.9"
+      ></a-plane>
 
-      <a-text
-        value="Target Locked!"
-        position="0 0 0.05"
-        rotation="0 0 0"
-        color="#7c6af7"
-        width="2"
-        align="center"
-        font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
-      ></a-text>
-
-      <a-torus
-        position="0 0 0.01"
-        rotation="0 0 0"
-        radius="0.45"
-        radius-tubular="0.01"
-        color="#7c6af7"
-        opacity="0.7"
-        animation="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; dur: 1200; direction: alternate; easing: easeInOutSine; loop: true"
-      ></a-torus>
+      <a-box 
+        position="0 0 0.1" 
+        rotation="0 0 0" 
+        width="0.3" 
+        height="0.3" 
+        depth="0.3" 
+        color="#00FFFF"
+      ></a-box>
 
     </a-entity>
   </a-scene>
