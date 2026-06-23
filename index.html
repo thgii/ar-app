@@ -75,9 +75,7 @@
     }
     #hint-banner.visible { opacity: 1; }
 
-    /* REMOVED: Hardcoded body > video overrides that warp the aspect ratio.
-      MindAR and A-Frame will now handle scaling automatically.
-    */
+    /* MindAR and A-Frame will now handle video scaling automatically */
     .a-canvas {
       z-index: 2 !important;
     }
@@ -169,6 +167,9 @@
     });
 
     scene.addEventListener('targetFound', (event) => {
+      // Safety guard clause to fix MindAR's empty event payload bug
+      if (!event || !event.detail) return;
+
       const foundIndex = event.detail.targetIndex;
       hintBanner.textContent = `🎯 MATCH FOUND (INDEX: ${foundIndex})`;
       hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; 
