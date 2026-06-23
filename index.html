@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Web AR — Restored Tracking Build</title>
 
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
@@ -75,22 +75,14 @@
     }
     #hint-banner.visible { opacity: 1; }
 
-    /* Strict hardware override layers to align the viewports */
+    /* Cleaned up overlay canvas behaviors */
     body > video {
       position: fixed !important;
       top: 0 !important;
       left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      object-fit: cover !important;
       z-index: 1 !important;
     }
     .a-canvas {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
       z-index: 2 !important;
     }
   </style>
@@ -113,19 +105,9 @@
   <div id="hint-banner">Scanning for target image...</div>
 
   <a-scene
-    mindar-image="
-      imageTargetSrc: ./targets.mind; 
-      autoStart: false; 
-      uiLoading: no; 
-      uiScanning: no; 
-      uiError: no;
-      missTolerance: 10;
-      warmupTolerance: 3;
-      filterMinCF: 0.001;
-      filterBeta: 10;
-    "
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
-    renderer="colorManagement: true; precision: highp;"
+    renderer="colorManagement: physical; precision: highp;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
@@ -133,16 +115,17 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
 
-    <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
-      
+    <a-entity id="ar-target-0" mindar-image-target="targetIndex: 0">
       <a-sphere 
         position="0 0 0.1" 
         radius="0.25" 
         color="#00FF00"
         animation="property: position; from: 0 -0.05 0.1; to: 0 0.05 0.1; dur: 1000; direction: alternate; easing: easeInOutSine; loop: true"
       ></a-sphere>
-
     </a-entity>
+
+    <a-entity id="ar-target-1" mindar-image-target="targetIndex: 1">
+      </a-entity>
   </a-scene>
 
   <script>
@@ -152,8 +135,7 @@
     const readyMsg       = document.getElementById('ready-msg');
     const hintBanner    = document.getElementById('hint-banner');
     const startBtn      = document.getElementById('start-btn');
-    const scene         = document.querySelector('a-scene');
-    const arTarget      = document.getElementById('ar-target');
+    const scene          = document.querySelector('a-scene');
 
     let arSystem = null;
 
@@ -186,16 +168,15 @@
       hintBanner.classList.add('visible');
     });
 
-    // Dynamic Tracking Layer Realignment Hook
+    scene.addEventListener('arError', () => {
+      showError('Pipeline Error', 'Could not open WebAR target systems.');
+    });
+
     scene.addEventListener('targetFound', (event) => {
       const foundIndex = event.detail.targetIndex;
       hintBanner.textContent = `🎯 MATCH FOUND (INDEX: ${foundIndex})`;
       hintBanner.style.backgroundColor = "rgba(46, 204, 113, 0.9)"; 
       hintBanner.classList.add('visible');
-      
-      if (arTarget) {
-        arTarget.setAttribute('mindar-image-target', `targetIndex: ${foundIndex}`);
-      }
     });
 
     scene.addEventListener('targetLost', () => {
