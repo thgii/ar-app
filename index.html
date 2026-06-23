@@ -75,13 +75,9 @@
     }
     #hint-banner.visible { opacity: 1; }
 
-    /* Cleaned up overlay canvas behaviors */
-    body > video {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      z-index: 1 !important;
-    }
+    /* REMOVED: Hardcoded body > video overrides that warp the aspect ratio.
+      MindAR and A-Frame will now handle scaling automatically.
+    */
     .a-canvas {
       z-index: 2 !important;
     }
@@ -105,7 +101,7 @@
   <div id="hint-banner">Scanning for target image...</div>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; warmupTolerance: 1; missTolerance: 5; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
     renderer="colorManagement: physical; precision: highp;"
     vr-mode-ui="enabled: false"
@@ -169,7 +165,7 @@
     });
 
     scene.addEventListener('arError', () => {
-      showError('Pipeline Error', 'Could not open WebAR target systems.');
+      showError('Pipeline Error', 'Could not open WebAR target tracking layers.');
     });
 
     scene.addEventListener('targetFound', (event) => {
